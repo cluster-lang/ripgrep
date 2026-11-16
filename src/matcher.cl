@@ -1,8 +1,8 @@
 // ==============================================================================
 // Module:      Fast Matcher Engine (matcher.cl)
 // Project:     Cluster Ripgrep (High-Performance Recursive Search Engine)
-// Author:      Zaid Alamgir (ZK Company)
-// License:     MIT License
+// Author:      mohammadzaid/(cluster) <zkalamgir@proton.me>
+// License:     Cluster Community // License:     MIT License Fair-Source License (CCFL-1.0)
 // Description: High-speed Boyer-Moore-Horspool substring search and regular expression
 //              engine with DFA/NFA evaluation, greedy backtracking, character classes,
 //              word boundary checks, and match span extraction.

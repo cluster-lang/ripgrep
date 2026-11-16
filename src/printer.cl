@@ -1,8 +1,8 @@
 // ==============================================================================
 // Module:      Terminal Output & Highlighting Engine (printer.cl)
 // Project:     Cluster Ripgrep (High-Performance Recursive Search Engine)
-// Author:      Zaid Alamgir (ZK Company)
-// License:     MIT License
+// Author:      mohammadzaid/(cluster) <zkalamgir@proton.me>
+// License:     Cluster Community // License:     MIT License Fair-Source License (CCFL-1.0)
 // Description: Terminal formatting, ANSI color rendering, context line buffering,
 //              and file match extraction adhering to standard ripgrep output conventions.
 // ==============================================================================

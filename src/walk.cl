@@ -1,8 +1,8 @@
 // ==============================================================================
 // Module:      Fast Filesystem Walker & Ignore Engine (walk.cl)
 // Project:     Cluster Ripgrep (High-Performance Recursive Search Engine)
-// Author:      Zaid Alamgir (ZK Company)
-// License:     MIT License
+// Author:      mohammadzaid/(cluster) <zkalamgir@proton.me>
+// License:     Cluster Community // License:     MIT License Fair-Source License (CCFL-1.0)
 // Description: High-speed recursive directory traversal engine featuring .gitignore rule
 //              parsing, hidden file filters, and fast binary file auto-detection.
 // ==============================================================================

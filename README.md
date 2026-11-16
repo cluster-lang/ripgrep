@@ -1,9 +1,14 @@
 # Cluster Ripgrep: High-Performance Recursive Search Engine
 
-**Author:** Zaid Alamgir (ZK Company)  
-**License:** MIT License  
+> [!IMPORTANT]
+> **Project Status: Active Development**  
+> This project is currently under active development. Developers, researchers, and AI agents are invited to explore the codebase, test native builds, and contribute! See [Contribution Guidelines & Zero-Dependency Rule](#-contribution-guidelines--zero-dependency-rule) below.
 
-A blazing-fast, line-oriented recursive regex and pattern search engine implemented in Cluster with zero external runtime dependencies. Compiled to a standalone native binary via the Cluster LLVM `-O3` compiler pipeline.
+**Author:** mohammadzaid/(cluster) <zkalamgir@proton.me>  
+**Organization:** [cluster-lang](https://github.com/cluster-lang)  
+**License:** Cluster Community & Fair-Source License (CCFL v1.0 / MIT-Conditional)  
+
+A blazing-fast, line-oriented recursive regex and pattern search engine implemented in pure Cluster with zero external runtime dependencies. Compiled to a standalone native binary via the Cluster LLVM `-O3` compiler pipeline.
 
 ---
 
@@ -61,6 +66,18 @@ ripgrep/
 
 ---
 
+## 🤝 Contribution Guidelines & Zero-Dependency Rule
+
+The fundamental mission of **Cluster** is to eliminate external dependency bloat and provide a self-contained, high-performance ecosystem.
+
+### Core Rules for Contributions:
+1. **100% Pure Cluster (`.cl`):** All search algorithms, walkers, and formatters must be written purely in Cluster.
+2. **Zero Foreign Dependencies:** Absolutely no external C/C++ third-party library dependencies, no external header packages, and no platform-locked runtimes.
+3. **Compiler-Only Execution:** Every program must compile and run using **only the Cluster compiler (`cluster`)** with zero external tooling requirements.
+4. **Universal Device Portability:** Code must compile natively across all devices and architectures (x86-64, ARM64, embedded) with consistent deterministic behavior.
+
+---
+
 ## 🧪 Automated Test Suite
 
 Run the full 10-phase automated test suite:
@@ -68,16 +85,14 @@ Run the full 10-phase automated test suite:
 cl run tests/test_ripgrep.cl
 ```
 
-```text
-=================================================================
-      ALL CLUSTER-RIPGREP TESTS PASSED (100% OK)!                
-=================================================================
-```
-
 ---
 
-## 🏗️ Building From Source
+## 📜 License & Commercial Terms
 
-```bash
-cl build src/main.cl -o bin/cluster-rg
-```
+This software is released under the **Cluster Community & Fair-Source License (CCFL v1.0 / MIT-Conditional)**:
+
+- **100% Free for Independent & Research Use:**
+  - Individual software developers, students, educators, academic researchers, non-profits, and scientific research groups have full rights to inspect, run, modify, compile, and contribute without any license fees.
+- **Commercial Enterprise License Required:**
+  - Commercial companies, startups, and for-profit businesses using Cluster Ripgrep in commercial products, SaaS services, proprietary closed-source systems, or revenue-generating operations are required to purchase a commercial license.
+  - Contact: **`zkalamgir@proton.me`** (`mohammadzaid/(cluster)`).
