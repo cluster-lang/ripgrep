@@ -1,10 +1,26 @@
 // ==============================================================================
-// Terminal Printer & ANSI Highlighting Engine for Cluster-Ripgrep
-// 100% Pure Cluster Language - Ripgrep-compatible output formatting
+// Module:      Terminal Output & Highlighting Engine (printer.cl)
+// Project:     Cluster Ripgrep (High-Performance Recursive Search Engine)
+// Author:      Zaid Alamgir (ZK Company)
+// License:     MIT License
+// Description: Terminal formatting, ANSI color rendering, context line buffering,
+//              and file match extraction adhering to standard ripgrep output conventions.
 // ==============================================================================
 
 import "src/matcher.cl"
 
+// ------------------------------------------------------------------------------
+// Model:   PrintConfig
+// Purpose: Configures terminal output formatting and display filters.
+// Fields:
+//   show_line_numbers: 1 to print line numbers preceding matched lines
+//   count_only:        1 (-c) to only output total match count per file
+//   files_only:        1 (-l) to only print filenames containing matches
+//   invert_match:      1 (-v) to select non-matching lines
+//   color_enabled:     1 to render ANSI escape codes for file paths, line numbers, and matches
+//   context_before:    Number of leading context lines (-B)
+//   context_after:     Number of trailing context lines (-A)
+// ------------------------------------------------------------------------------
 model PrintConfig:
     show_line_numbers: int
     count_only: int
@@ -14,15 +30,27 @@ model PrintConfig:
     context_before: int
     context_after: int
 
+// ------------------------------------------------------------------------------
+// Function: print_config_default
+// Syntax:   fn print_config_default() -> PrintConfig
+// Purpose:  Returns standard default output configuration.
+// ------------------------------------------------------------------------------
 fn print_config_default() -> PrintConfig:
     return PrintConfig(1, 0, 0, 0, 1, 0, 0)
 
-// ANSI Color Codes
+// ------------------------------------------------------------------------------
+// ANSI Terminal Color Codes
+// ------------------------------------------------------------------------------
 fn color_magenta() -> string: return chr(27) + "[35m"
 fn color_green() -> string: return chr(27) + "[32m"
 fn color_bold_red() -> string: return chr(27) + "[1;31m"
 fn color_reset() -> string: return chr(27) + "[0m"
 
+// ------------------------------------------------------------------------------
+// Function: split_lines
+// Syntax:   fn split_lines(content: string) -> vector[string]
+// Purpose:  Splits a string buffer into discrete lines separated by LF, stripping CR.
+// ------------------------------------------------------------------------------
 fn split_lines(content: string) -> vector[string]:
     let lines: vector[string] = []
     let sz: int = len(content)
@@ -31,7 +59,6 @@ fn split_lines(content: string) -> vector[string]:
     while i < sz:
         b := byte_at(content, i)
         if b == 10: // '\n'
-            // Strip trailing '\r' if present
             if len(cur) > 0:
                 if byte_at(cur, len(cur) - 1) == 13:
                     cur = substring(cur, 0, len(cur) - 1)
@@ -48,6 +75,11 @@ fn split_lines(content: string) -> vector[string]:
 
     return lines
 
+// ------------------------------------------------------------------------------
+// Function: highlight_line
+// Syntax:   fn highlight_line(line: string, spans: vector[MatchSpan], color_enabled: int) -> string
+// Purpose:  Injects bold red ANSI styling around byte spans corresponding to pattern hits.
+// ------------------------------------------------------------------------------
 fn highlight_line(line: string, spans: vector[MatchSpan], color_enabled: int) -> string:
     if color_enabled == 0:
         return line
@@ -64,7 +96,6 @@ fn highlight_line(line: string, spans: vector[MatchSpan], color_enabled: int) ->
         if sp.start_pos > last_idx:
             out = out + substring(line, last_idx, sp.start_pos - last_idx)
         
-        // Highlighted matched token
         out = out + color_bold_red()
         out = out + substring(line, sp.start_pos, sp.end_pos - sp.start_pos)
         out = out + color_reset()
@@ -76,7 +107,12 @@ fn highlight_line(line: string, spans: vector[MatchSpan], color_enabled: int) ->
 
     return out
 
-// Searches a single file and formats output according to Ripgrep conventions
+// ------------------------------------------------------------------------------
+// Function: search_file
+// Syntax:   fn search_file(filepath: string, reg: RegexPattern, cfg: PrintConfig) -> int
+// Purpose:  Reads a file, runs line-by-line pattern matching, applies context windowing
+//           (-A, -B, -C), renders ANSI color highlights, and outputs results. Returns match count.
+// ------------------------------------------------------------------------------
 fn search_file(filepath: string, reg: RegexPattern, cfg: PrintConfig) -> int:
     content := file_read(filepath)
     lines := split_lines(content)

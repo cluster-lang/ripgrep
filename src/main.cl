@@ -1,16 +1,25 @@
 // ==============================================================================
-// Cluster-Ripgrep (rg): Blazing Fast Recursive Regex Search Engine
-// 100% Pure Cluster Language - Zero Foreign Dependencies
+// Module:      Main CLI Command-Line Driver (main.cl)
+// Project:     Cluster Ripgrep (High-Performance Recursive Search Engine)
+// Author:      Zaid Alamgir (ZK Company)
+// License:     MIT License
+// Description: Command-line interface parser, option validator, recursive search dispatcher,
+//              and exit-code controller matching ripgrep CLI conventions.
 // ==============================================================================
 
 import "src/matcher.cl"
 import "src/walk.cl"
 import "src/printer.cl"
 
+// ------------------------------------------------------------------------------
+// Function: print_usage
+// Syntax:   fn print_usage() -> void
+// Purpose:  Displays usage syntax, available switches, and parameter definitions.
+// ------------------------------------------------------------------------------
 fn print_usage():
-    println("cluster-ripgrep (rg) 1.0.0 (pure cluster native)")
+    println("cluster-ripgrep (rg) 1.0.0 (LLVM -O3)")
     println("USAGE:")
-    println("    rg [OPTIONS] <PATTERN> [PATH ...]")
+    println("    cluster-rg [OPTIONS] <PATTERN> [PATH ...]")
     println("")
     println("ARGS:")
     println("    <PATTERN>    A regular expression or literal string to search for")
@@ -34,6 +43,12 @@ fn print_usage():
     println("    -h, --help                 Print help information")
     println("    -V, --version              Print version information")
 
+// ------------------------------------------------------------------------------
+// Function: main
+// Syntax:   fn main() -> int
+// Purpose:  CLI entrypoint. Parses command line switches, executes recursive search,
+//           and returns 0 if matches are found, 1 if no matches are found, or error.
+// ------------------------------------------------------------------------------
 fn main() -> int:
     let num_args: int = len(sys_args)
     if num_args == 0:
@@ -63,7 +78,7 @@ fn main() -> int:
             print_usage()
             return 0
         elif arg == "-V" or arg == "--version":
-            println("cluster-ripgrep (rg) 1.0.0 (pure cluster native)")
+            println("cluster-ripgrep (rg) 1.0.0 (LLVM -O3)")
             return 0
         elif arg == "-i" or arg == "--ignore-case":
             ignore_case = 1

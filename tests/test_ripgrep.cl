@@ -1,19 +1,34 @@
 // ==============================================================================
-// Comprehensive Test Suite for Cluster-Ripgrep
-// 100% Pure Cluster Language Verification
+// Module:      Comprehensive Verification Suite (tests/test_ripgrep.cl)
+// Project:     Cluster Ripgrep (High-Performance Recursive Search Engine)
+// Author:      Zaid Alamgir (ZK Company)
+// License:     MIT License
+// Description: Multi-phase unit and integration test suite validating Boyer-Moore search,
+//              case folding, word boundary detection, regex wildcards/quantifiers, character
+//              classes, line anchors, ANSI coloring, and recursive directory traversal.
 // ==============================================================================
 
 import "src/matcher.cl"
 import "src/walk.cl"
 import "src/printer.cl"
 
+// ------------------------------------------------------------------------------
+// Function: assert_true
+// Syntax:   fn assert_true(cond: int, msg: string) -> void
+// Purpose:  Verifies condition is non-zero, raising test failure on assertion violation.
+// ------------------------------------------------------------------------------
 fn assert_true(cond: int, msg: string):
     if cond == 0:
         println("[FAIL] Assertion failed: " + msg)
         assert(0)
 
+// ------------------------------------------------------------------------------
+// Function: main
+// Syntax:   fn main() -> int
+// Purpose:  Executes all 10 verification phases for Cluster Ripgrep.
+// ------------------------------------------------------------------------------
 fn main() -> int:
-    println("--- Testing Cluster-Ripgrep 100% Native Pure Engine ---")
+    println("--- Testing Cluster-Ripgrep Verification Suite ---")
 
     // Phase 1: Literal Substring Search (Boyer-Moore)
     println("-> 1. Testing Boyer-Moore literal search...")
@@ -59,60 +74,65 @@ fn main() -> int:
 
     // Phase 5: Character Classes ([0-9], [a-z])
     println("-> 5. Testing Character Classes...")
-    reg_cls := regex_compile("item-[0-9]+", 0, 0)
-    res_cls := regex_find_in_line(reg_cls, "found item-42 and item-999 in list")
-    assert_true(res_cls.matched == 1, "Class regex matched")
-    assert_true(len(res_cls.spans) == 2, "Expected 2 spans for item-[0-9]+")
+    reg_cc := regex_compile("item-[0-9]+", 0, 0)
+    res_cc := regex_find_in_line(reg_cc, "order item-42 processed item-999")
+    assert_true(res_cc.matched == 1, "Character class matched")
+    assert_true(len(res_cc.spans) == 2, "Expected 2 digit spans")
     println("✓ Character classes passed!")
 
-    // Phase 6: Anchors (^, $)
+    // Phase 6: Line Anchors (^ and $)
     println("-> 6. Testing Line Anchors (^, $)...")
-    reg_start := regex_compile("^hello", 0, 0)
-    res_s1 := regex_find_in_line(reg_start, "hello world")
-    res_s2 := regex_find_in_line(reg_start, "say hello world")
-    assert_true(res_s1.matched == 1, "^hello should match at start")
-    assert_true(res_s2.matched == 0, "^hello should NOT match non-start")
+    reg_start := regex_compile("^start", 0, 0)
+    res_s1 := regex_find_in_line(reg_start, "start of line")
+    assert_true(res_s1.matched == 1, "Anchor start matched")
+    res_s2 := regex_find_in_line(reg_start, "not at the start")
+    assert_true(res_s2.matched == 0, "Anchor start failed as expected")
 
     reg_end := regex_compile("end$", 0, 0)
     res_e1 := regex_find_in_line(reg_end, "this is the end")
-    res_e2 := regex_find_in_line(reg_end, "the ending is near")
-    assert_true(res_e1.matched == 1, "end$ should match at line end")
-    assert_true(res_e2.matched == 0, "end$ should NOT match non-end")
+    assert_true(res_e1.matched == 1, "Anchor end matched")
+    res_e2 := regex_find_in_line(reg_end, "the end is not here")
+    assert_true(res_e2.matched == 0, "Anchor end failed as expected")
     println("✓ Line anchors passed!")
 
-    // Phase 7: Split Lines and Highlighting
+    // Phase 7: Line Splitting & ANSI Highlighting
     println("-> 7. Testing line splitting and ANSI highlighting...")
-    sample_text := "Line 1: Red\nLine 2: Blue\nLine 3: Green"
-    lines := split_lines(sample_text)
-    assert_true(len(lines) == 3, "Expected 3 lines")
-    assert_true(lines[0] == "Line 1: Red", "Line 0 match")
-    assert_true(lines[1] == "Line 2: Blue", "Line 1 match")
-    assert_true(lines[2] == "Line 3: Green", "Line 2 match")
+    multiline := "line one\nline two\r\nline three"
+    l_vec := split_lines(multiline)
+    assert_true(len(l_vec) == 3, "Expected 3 split lines")
+    assert_true(l_vec[0] == "line one", "Line 0 match")
+    assert_true(l_vec[1] == "line two", "Line 1 match (CR stripped)")
+    assert_true(l_vec[2] == "line three", "Line 2 match")
     println("✓ Line splitting passed!")
 
-    // Phase 8: Directory Traversal
+    // Phase 8: Directory Traversal and Gitignore Filtering
     println("-> 8. Testing directory traversal and ignore filtering...")
-    w_opts := walk_options_default()
-    files := walk_directory("src", w_opts)
-    assert_true(len(files) >= 3, "Expected at least 3 source files in src/")
+    opts := walk_options_default()
+    files := walk_directory("src", opts)
+    assert_true(len(files) >= 4, "Expected src/ files found")
     println("✓ Directory traversal passed! Found " + str(len(files)) + " source files.")
 
-    // Phase 9: File Search & Reporting
+    // Phase 9: File Search Pipeline End-to-End
     println("-> 9. Testing in-memory file search...")
-    test_file_path := "/tmp/cluster_rg_test.txt"
-    file_write(test_file_path, "apple\nbanana\ncherry\napple pie\norange\n")
-    p_reg := regex_compile("apple", 0, 0)
-    p_cfg := print_config_default()
-    hits := search_file(test_file_path, p_reg, p_cfg)
-    assert_true(hits == 2, "Expected 2 hits for 'apple'")
+    tmp_path := "/tmp/cluster_rg_test.txt"
+    test_content := "apple\nbanana\ncherry\napple pie\norange\n"
+    file_write(tmp_path, test_content)
+
+    reg_search := regex_compile("apple", 0, 0)
+    cfg := print_config_default()
+    m_count := search_file(tmp_path, reg_search, cfg)
+    assert_true(m_count == 2, "Expected 2 matches for apple")
     println("✓ File search passed!")
 
-    // Phase 10: Inverted Matching (-v)
+    // Phase 10: Inverted Match (-v)
     println("-> 10. Testing Inverted Matching (-v)...")
-    let p_cfg_v: PrintConfig = PrintConfig(1, 0, 0, 1, 0, 0, 0)
-    hits_v := search_file(test_file_path, p_reg, p_cfg_v)
-    assert_true(hits_v == 3, "Expected 3 non-apple lines (banana, cherry, orange)")
+    let mut cfg_inv: PrintConfig = print_config_default()
+    cfg_inv.invert_match = 1
+    m_inv := search_file(tmp_path, reg_search, cfg_inv)
+    assert_true(m_inv == 3, "Expected 3 inverted matches (banana, cherry, orange)")
     println("✓ Inverted matching passed!")
+
+    system("rm -f " + tmp_path)
 
     println("=================================================================")
     println("      ALL CLUSTER-RIPGREP TESTS PASSED (100% OK)!                ")

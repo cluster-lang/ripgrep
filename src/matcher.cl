@@ -1,32 +1,70 @@
 // ==============================================================================
-// Fast Matcher Engine for Cluster-Ripgrep
-// 100% Pure Cluster Language - Boyer-Moore-Horspool & Regex DFA/NFA
+// Module:      Fast Matcher Engine (matcher.cl)
+// Project:     Cluster Ripgrep (High-Performance Recursive Search Engine)
+// Author:      Zaid Alamgir (ZK Company)
+// License:     MIT License
+// Description: High-speed Boyer-Moore-Horspool substring search and regular expression
+//              engine with DFA/NFA evaluation, greedy backtracking, character classes,
+//              word boundary checks, and match span extraction.
 // ==============================================================================
 
+// ------------------------------------------------------------------------------
+// Model:   MatchSpan
+// Purpose: Stores the 0-indexed byte offset range [start_pos, end_pos) of a matched token.
+// Fields:
+//   start_pos: Starting byte index in the line string
+//   end_pos:   Ending byte index (exclusive) in the line string
+// ------------------------------------------------------------------------------
 model MatchSpan:
     start_pos: int
     end_pos: int
 
+// ------------------------------------------------------------------------------
+// Model:   MatchResult
+// Purpose: Encapsulates the overall result of a line search and all matched spans.
+// Fields:
+//   matched: 1 if at least one match occurred in the line, 0 otherwise
+//   spans:   Collection of individual MatchSpan offsets for syntax highlighting
+// ------------------------------------------------------------------------------
 model MatchResult:
     matched: int
     spans: vector[MatchSpan]
 
+// ------------------------------------------------------------------------------
+// Function: byte_to_lower
+// Syntax:   fn byte_to_lower(b: int) -> int
+// Purpose:  Converts an ASCII byte to lowercase if it falls in the uppercase range 'A'-'Z'.
+// ------------------------------------------------------------------------------
 fn byte_to_lower(b: int) -> int:
     if b >= 65:
         if b <= 90:
             return b + 32
     return b
 
-// ------------------------------------------------------------------------------
+// ==============================================================================
 // Boyer-Moore-Horspool Fast Substring Matcher
-// ------------------------------------------------------------------------------
+// ==============================================================================
 
+// ------------------------------------------------------------------------------
+// Model:   BmPattern
+// Purpose: Precompiled Boyer-Moore-Horspool bad-character shift lookup table.
+// Fields:
+//   pat:         The raw pattern string
+//   pat_len:     Length of pattern in bytes
+//   ignore_case: 1 for case-insensitive matching, 0 for case-sensitive
+//   shift:       256-element jump table indexed by ASCII character byte
+// ------------------------------------------------------------------------------
 model BmPattern:
     pat: string
     pat_len: int
     ignore_case: int
     shift: vector[int]
 
+// ------------------------------------------------------------------------------
+// Function: bm_compile
+// Syntax:   fn bm_compile(pattern: string, ignore_case: int) -> BmPattern
+// Purpose:  Constructs a bad-character shift table for sublinear Boyer-Moore scanning.
+// ------------------------------------------------------------------------------
 fn bm_compile(pattern: string, ignore_case: int) -> BmPattern:
     plen := len(pattern)
     let mut s: vector[int] = []
@@ -46,6 +84,12 @@ fn bm_compile(pattern: string, ignore_case: int) -> BmPattern:
 
     return BmPattern(pattern, plen, ignore_case, s)
 
+// ------------------------------------------------------------------------------
+// Function: bm_find_in_line
+// Syntax:   fn bm_find_in_line(bm: BmPattern, line: string, word_boundary: int) -> MatchResult
+// Purpose:  Executes sublinear Boyer-Moore-Horspool substring search over a single line,
+//           optionally enforcing whole-word boundaries (-w flag).
+// ------------------------------------------------------------------------------
 fn bm_find_in_line(bm: BmPattern, line: string, word_boundary: int) -> MatchResult:
     let empty_spans: vector[MatchSpan] = []
     plen := bm.pat_len
@@ -102,20 +146,38 @@ fn bm_find_in_line(bm: BmPattern, line: string, word_boundary: int) -> MatchResu
         return MatchResult(1, spans)
     return MatchResult(0, empty_spans)
 
-// ------------------------------------------------------------------------------
+// ==============================================================================
 // Regular Expression Matcher Engine
-// ------------------------------------------------------------------------------
+// ==============================================================================
 
+// ------------------------------------------------------------------------------
+// Model:   RegexAtom
+// Purpose: Basic token atom within a compiled regex expression (char, dot, or character class).
+// Fields:
+//   kind:       Atom type identifier: "char", "dot", or "class"
+//   ch:         Single character byte value when kind == "char"
+//   char_class: String representation of character set/ranges when kind == "class"
+//   negated:    1 if character class is inverted ([^...]), 0 otherwise
+// ------------------------------------------------------------------------------
 model RegexAtom:
     kind: string    // "char", "dot", "class"
     ch: int
     char_class: string
     negated: int
 
+// ------------------------------------------------------------------------------
+// Model:   RegexOp
+// Purpose: Pairs a regex atom with its repetition quantifier ("exact", "star", "plus", "opt").
+// ------------------------------------------------------------------------------
 model RegexOp:
     atom: RegexAtom
     quantifier: string // "exact", "star", "plus", "opt"
 
+// ------------------------------------------------------------------------------
+// Model:   RegexPattern
+// Purpose: Complete compiled regex structure containing anchors, sequence of ops,
+//          case-sensitivity flags, and Boyer-Moore literal fast path.
+// ------------------------------------------------------------------------------
 model RegexPattern:
     raw: string
     anchor_start: int
@@ -126,11 +188,21 @@ model RegexPattern:
     is_literal_only: int
     bm: BmPattern
 
+// ------------------------------------------------------------------------------
+// Function: is_regex_meta
+// Syntax:   fn is_regex_meta(c: int) -> int
+// Purpose:  Returns 1 if the byte corresponds to a regex metacharacter (. * + ? ^ $ [ ] ( ) | \).
+// ------------------------------------------------------------------------------
 fn is_regex_meta(c: int) -> int:
     if c == 46 or c == 42 or c == 43 or c == 63 or c == 94 or c == 36 or c == 91 or c == 93 or c == 40 or c == 41 or c == 124 or c == 92:
         return 1
     return 0
 
+// ------------------------------------------------------------------------------
+// Function: char_class_match
+// Syntax:   fn char_class_match(cc: string, b: int, ignore_case: int) -> int
+// Purpose:  Tests whether a byte 'b' matches any literal or hyphen range in character class 'cc'.
+// ------------------------------------------------------------------------------
 fn char_class_match(cc: string, b: int, ignore_case: int) -> int:
     let mut check_b: int = b
     if ignore_case == 1:
@@ -152,6 +224,12 @@ fn char_class_match(cc: string, b: int, ignore_case: int) -> int:
         i = i + 1
     return 0
 
+// ------------------------------------------------------------------------------
+// Function: regex_compile
+// Syntax:   fn regex_compile(pattern: string, ignore_case: int, word_boundary: int) -> RegexPattern
+// Purpose:  Compiles a regex pattern string into a stream of atomic operators and quantifiers,
+//           detecting literal substrings to automatically activate the Boyer-Moore fast path.
+// ------------------------------------------------------------------------------
 fn regex_compile(pattern: string, ignore_case: int, word_boundary: int) -> RegexPattern:
     let ops: vector[RegexOp] = []
     let plen: int = len(pattern)
@@ -242,6 +320,11 @@ fn regex_compile(pattern: string, ignore_case: int, word_boundary: int) -> Regex
 
     return RegexPattern(pattern, anchor_start, anchor_end, ops, ignore_case, word_boundary, is_lit, bm)
 
+// ------------------------------------------------------------------------------
+// Function: regex_match_atom
+// Syntax:   fn regex_match_atom(atom: RegexAtom, b: int, ignore_case: int) -> int
+// Purpose:  Evaluates whether a single byte 'b' satisfies an atomic regex condition.
+// ------------------------------------------------------------------------------
 fn regex_match_atom(atom: RegexAtom, b: int, ignore_case: int) -> int:
     if atom.kind == "dot":
         return 1
@@ -261,7 +344,12 @@ fn regex_match_atom(atom: RegexAtom, b: int, ignore_case: int) -> int:
         return 1
     return 0
 
-// Recursive backtracking regex matcher with greedy quantifiers
+// ------------------------------------------------------------------------------
+// Function: regex_match_ops
+// Syntax:   fn regex_match_ops(reg: RegexPattern, line: string, op_i: int, cur: int) -> int
+// Purpose:  Recursive greedy backtracking evaluator for regex operator chains.
+//           Returns the ending byte offset of the match, or -1 if no match occurs.
+// ------------------------------------------------------------------------------
 fn regex_match_ops(reg: RegexPattern, line: string, op_i: int, cur: int) -> int:
     llen := len(line)
     if op_i >= len(reg.ops):
@@ -324,9 +412,20 @@ fn regex_match_ops(reg: RegexPattern, line: string, op_i: int, cur: int) -> int:
 
     return -1
 
+// ------------------------------------------------------------------------------
+// Function: regex_match_at
+// Syntax:   fn regex_match_at(reg: RegexPattern, line: string, start_idx: int) -> int
+// Purpose:  Tests whether the compiled regex pattern matches starting at byte offset start_idx.
+// ------------------------------------------------------------------------------
 fn regex_match_at(reg: RegexPattern, line: string, start_idx: int) -> int:
     return regex_match_ops(reg, line, 0, start_idx)
 
+// ------------------------------------------------------------------------------
+// Function: regex_find_in_line
+// Syntax:   fn regex_find_in_line(reg: RegexPattern, line: string) -> MatchResult
+// Purpose:  Scans a line for matches, delegating literal expressions to the Boyer-Moore
+//           fast path, or evaluating anchored/unanchored regex patterns to return all spans.
+// ------------------------------------------------------------------------------
 fn regex_find_in_line(reg: RegexPattern, line: string) -> MatchResult:
     let empty_spans: vector[MatchSpan] = []
 
