@@ -6,7 +6,7 @@
 
 **Author:** mohammadzaid/(cluster) <zkalamgir@proton.me>  
 **Organization:** [cluster-lang](https://github.com/cluster-lang)  
-**License:** Cluster Community & Fair-Source License (CCFL v1.0 / MIT-Conditional)  
+**License:** Cluster Community & Fair-Source License (CCFL v2.0 / Strict-Distribution)  
 
 A blazing-fast, line-oriented recursive regex and pattern search engine implemented in pure Cluster with zero external runtime dependencies. Compiled to a standalone native binary via the Cluster LLVM `-O3` compiler pipeline.
 
@@ -89,7 +89,7 @@ cl run tests/test_ripgrep.cl
 
 ## 📜 License & Commercial Terms
 
-This software is released under the **Cluster Community & Fair-Source License (CCFL v1.0 / MIT-Conditional)**:
+This software is released under the **Cluster Community & Fair-Source License (CCFL v2.0 / Strict-Distribution)**:
 
 - **100% Free for Independent & Research Use:**
   - Individual software developers, students, educators, academic researchers, non-profits, and scientific research groups have full rights to inspect, run, modify, compile, and contribute without any license fees.

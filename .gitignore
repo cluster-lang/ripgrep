@@ -1,0 +1,16 @@
+# ==============================================================================
+# Cluster Ripgrep: Git Ignore
+# ==============================================================================
+
+# Cache and IDE artifacts
+.cl_cache/
+.vscode/
+
+# Build artifacts
+bin/
+!bin/cluster-rg
+*.out
+*.o
+*.tmp
+*.log
+.DS_Store
