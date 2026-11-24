@@ -5,7 +5,9 @@
 // License:     Cluster Community & Fair-Source License (CCFL v2.0)
 // Description: Multi-phase unit and integration test suite validating Boyer-Moore search,
 //              case folding, word boundary detection, regex wildcards/quantifiers, character
-//              classes, line anchors, ANSI coloring, and recursive directory traversal.
+//              classes, line anchors, ANSI coloring, recursive directory traversal,
+//              escaped shorthands (\d, \w, \s), alternation (foo|bar), range quantifiers,
+//              file type filtering (-t, -T), glob patterns (-g), max count (-m), and replacement (-r).
 // ==============================================================================
 
 import "src/matcher.cl"
@@ -25,7 +27,7 @@ fn assert_true(cond: int, msg: string):
 // ------------------------------------------------------------------------------
 // Function: main
 // Syntax:   fn main() -> int
-// Purpose:  Executes all 10 verification phases for Cluster Ripgrep.
+// Purpose:  Executes all 21 verification phases for Cluster Ripgrep.
 // ------------------------------------------------------------------------------
 fn main() -> int:
     println("--- Testing Cluster-Ripgrep Verification Suite ---")
@@ -148,20 +150,108 @@ fn main() -> int:
     let mut cfg_cnt: PrintConfig = print_config_default()
     cfg_cnt.count_only = 1
     m_cnt := search_file(tmp_path, reg_search, cfg_cnt)
-    assert_true(m_cnt == 2, "Expected count 2 returned")
+    assert_true(m_cnt == 2, "Expected count 2")
     println("✓ Count only mode passed!")
 
-    // Phase 13: Files With Matches Mode (-l)
+    // Phase 13: Files With Matches (-l)
     println("-> 13. Testing Files With Matches Mode (-l)...")
-    let mut cfg_files: PrintConfig = print_config_default()
-    cfg_files.files_only = 1
-    m_files := search_file(tmp_path, reg_search, cfg_files)
-    assert_true(m_files == 2, "Expected files mode match count")
+    let mut cfg_f: PrintConfig = print_config_default()
+    cfg_f.files_only = 1
+    m_f := search_file(tmp_path, reg_search, cfg_f)
+    assert_true(m_f == 2, "Files with matches mode returned matches")
     println("✓ Files with matches mode passed!")
 
+    // Phase 14: Escaped Class Shorthands (\d, \w, \s, \D, \W, \S)
+    println("-> 14. Testing Escaped Shorthands (\\d, \\w, \\s)...")
+    reg_d := regex_compile("\\d+", 0, 0)
+    res_d := regex_find_in_line(reg_d, "port 8080 active")
+    assert_true(res_d.matched == 1, "Digits \\d+ matched")
+    assert_true(len(res_d.spans) == 1, "Expected 1 span for 8080")
+
+    reg_w := regex_compile("\\w+", 0, 0)
+    res_w := regex_find_in_line(reg_w, "hello_world 123")
+    assert_true(res_w.matched == 1, "Word chars \\w+ matched")
+    assert_true(len(res_w.spans) == 2, "Expected 2 words")
+
+    reg_s := regex_compile("a\\sb", 0, 0)
+    res_s := regex_find_in_line(reg_s, "a b and a\tb")
+    assert_true(res_s.matched == 1, "Whitespace \\s matched")
+    assert_true(len(res_s.spans) == 2, "Expected 2 matches for space and tab")
+    println("✓ Escaped shorthands passed!")
+
+    // Phase 15: Word Boundary Assertions (\b, \B)
+    println("-> 15. Testing Regex Word Boundaries (\\b)...")
+    reg_b := regex_compile("\\bcat\\b", 0, 0)
+    res_b := regex_find_in_line(reg_b, "concatenate the cat in the hat")
+    assert_true(res_b.matched == 1, "\\bcat\\b matched")
+    assert_true(len(res_b.spans) == 1, "Expected exactly 1 word 'cat'")
+    println("✓ Regex word boundaries passed!")
+
+    // Phase 16: Alternation (foo|bar|baz)
+    println("-> 16. Testing Alternation (foo|bar|baz)...")
+    reg_alt := regex_compile("apple|banana|cherry", 0, 0)
+    res_alt := regex_find_in_line(reg_alt, "I like banana and apple")
+    assert_true(res_alt.matched == 1, "Alternation matched")
+    assert_true(len(res_alt.spans) == 2, "Expected 2 alternate matches")
+    println("✓ Regex alternation passed!")
+
+    // Phase 17: Range Quantifiers ({N}, {N,M})
+    println("-> 17. Testing Range Quantifiers ({N,M})...")
+    reg_range := regex_compile("a{2,4}", 0, 0)
+    res_r1 := regex_find_in_line(reg_range, "baac and baaaad")
+    assert_true(res_r1.matched == 1, "Range {2,4} matched")
+    assert_true(len(res_r1.spans) == 2, "Expected 2 matches for aa and aaaa")
+    println("✓ Range quantifiers passed!")
+
+    // Phase 18: File Type Filtering (-t cl, -T rust)
+    println("-> 18. Testing File Type Filtering...")
+    assert_true(match_file_type("cl", ".cl") == 1, "Type cl matched .cl")
+    assert_true(match_file_type("rust", ".rs") == 1, "Type rust matched .rs")
+    assert_true(match_file_type("cl", ".rs") == 0, "Type cl rejected .rs")
+
+    let mut t_opts: WalkOptions = walk_options_default()
+    t_opts.type_filters.push("cl")
+    assert_true(is_file_allowed("src/matcher.cl", t_opts) == 1, ".cl allowed")
+    assert_true(is_file_allowed("src/main.rs", t_opts) == 0, ".rs rejected by cl type filter")
+
+    let mut tn_opts: WalkOptions = walk_options_default()
+    tn_opts.type_not_filters.push("rust")
+    assert_true(is_file_allowed("src/matcher.cl", tn_opts) == 1, ".cl allowed with --type-not rust")
+    assert_true(is_file_allowed("src/main.rs", tn_opts) == 0, ".rs excluded by --type-not rust")
+    println("✓ File type filtering passed!")
+
+    // Phase 19: Glob Matching (-g)
+    println("-> 19. Testing Glob Pattern Matching...")
+    assert_true(glob_matches("*.cl", "src/walk.cl") == 1, "Glob *.cl matched walk.cl")
+    assert_true(glob_matches("*.rs", "src/walk.cl") == 0, "Glob *.rs rejected walk.cl")
+    assert_true(glob_matches("!*.tmp", "cache.tmp") == 0, "Glob !*.tmp rejected cache.tmp")
+    assert_true(glob_matches("!*.tmp", "main.cl") == 1, "Glob !*.tmp accepted main.cl")
+    println("✓ Glob pattern matching passed!")
+
+    // Phase 20: Max Count (-m) and Quiet Mode (-q)
+    println("-> 20. Testing Max Count (-m) and Quiet Mode (-q)...")
+    let mut cfg_m: PrintConfig = print_config_default()
+    cfg_m.max_count = 1
+    m_count_limit := search_file(tmp_path, reg_search, cfg_m)
+    assert_true(m_count_limit == 1, "Max count 1 respected")
+
+    let mut cfg_q: PrintConfig = print_config_default()
+    cfg_q.quiet = 1
+    m_quiet := search_file(tmp_path, reg_search, cfg_q)
+    assert_true(m_quiet == 1, "Quiet mode matched without printing")
+    println("✓ Max count and quiet mode passed!")
+
+    // Phase 21: Replacement Mode (-r)
+    println("-> 21. Testing Replacement Mode (-r)...")
+    spans_repl := regex_find_in_line(reg_search, "apple pie and apple cider")
+    replaced := replace_spans_in_line("apple pie and apple cider", spans_repl.spans, "orange")
+    assert_true(replaced == "orange pie and orange cider", "Replacement string correct: " + replaced)
+    println("✓ Replacement mode passed!")
+
+    // Clean up temporary test file
     system("rm -f " + tmp_path)
 
     println("=================================================================")
-    println("      ALL 13 CLUSTER-RIPGREP PHASES PASSED (100% OK)!            ")
+    println("      ALL 21 CLUSTER-RIPGREP PHASES PASSED (100% OK)!            ")
     println("=================================================================")
     return 0

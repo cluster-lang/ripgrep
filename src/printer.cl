@@ -4,7 +4,8 @@
 // Author:      zk-mohammad <ZaidKhan-alamgir@proton.me>
 // License:     Cluster Community & Fair-Source License (CCFL v2.0)
 // Description: Terminal formatting, ANSI color rendering, context line buffering,
-//              and file match extraction adhering to standard ripgrep output conventions.
+//              match replacement, JSON serialization, and file search adhering
+//              to standard ripgrep output conventions.
 // ==============================================================================
 
 import "src/matcher.cl"
@@ -20,6 +21,10 @@ import "src/matcher.cl"
 //   color_enabled:     1 to render ANSI escape codes for file paths, line numbers, and matches
 //   context_before:    Number of leading context lines (-B)
 //   context_after:     Number of trailing context lines (-A)
+//   max_count:         Maximum matches to display per file (-m) (0 = unlimited)
+//   quiet:             1 (-q) to suppress all normal output
+//   replace_str:       Replacement string (-r) for matched spans
+//   json_output:       1 (--json) to emit ripgrep-compatible JSON messages
 // ------------------------------------------------------------------------------
 model PrintConfig:
     show_line_numbers: int
@@ -29,6 +34,10 @@ model PrintConfig:
     color_enabled: int
     context_before: int
     context_after: int
+    max_count: int
+    quiet: int
+    replace_str: string
+    json_output: int
 
 // ------------------------------------------------------------------------------
 // Function: print_config_default
@@ -36,7 +45,7 @@ model PrintConfig:
 // Purpose:  Returns standard default output configuration.
 // ------------------------------------------------------------------------------
 fn print_config_default() -> PrintConfig:
-    return PrintConfig(1, 0, 0, 0, 1, 0, 0)
+    return PrintConfig(1, 0, 0, 0, 1, 0, 0, 0, 0, "", 0)
 
 // ------------------------------------------------------------------------------
 // ANSI Terminal Color Codes
@@ -76,6 +85,29 @@ fn split_lines(content: string) -> vector[string]:
     return lines
 
 // ------------------------------------------------------------------------------
+// Function: replace_spans_in_line
+// Syntax:   fn replace_spans_in_line(line: string, spans: vector[MatchSpan], repl: string) -> string
+// Purpose:  Substitutes matched spans in a line with a user-specified replacement string.
+// ------------------------------------------------------------------------------
+fn replace_spans_in_line(line: string, spans: vector[MatchSpan], repl: string) -> string:
+    if len(spans) == 0:
+        return line
+    let mut out: string = ""
+    let mut last_idx: int = 0
+    let sz: int = len(spans)
+    let mut i: int = 0
+    while i < sz:
+        let sp: MatchSpan = spans[i]
+        if sp.start_pos > last_idx:
+            out = out + substring(line, last_idx, sp.start_pos - last_idx)
+        out = out + repl
+        last_idx = sp.end_pos
+        i = i + 1
+    if last_idx < len(line):
+        out = out + substring(line, last_idx, len(line) - last_idx)
+    return out
+
+// ------------------------------------------------------------------------------
 // Function: highlight_line
 // Syntax:   fn highlight_line(line: string, spans: vector[MatchSpan], color_enabled: int) -> string
 // Purpose:  Injects bold red ANSI styling around byte spans corresponding to pattern hits.
@@ -111,7 +143,7 @@ fn highlight_line(line: string, spans: vector[MatchSpan], color_enabled: int) ->
 // Function: search_file
 // Syntax:   fn search_file(filepath: string, reg: RegexPattern, cfg: PrintConfig) -> int
 // Purpose:  Reads a file, runs line-by-line pattern matching, applies context windowing
-//           (-A, -B, -C), renders ANSI color highlights, and outputs results. Returns match count.
+//           (-A, -B, -C), renders ANSI color highlights, supports -m, -q, -r, and --json.
 // ------------------------------------------------------------------------------
 fn search_file(filepath: string, reg: RegexPattern, cfg: PrintConfig) -> int:
     content := file_read(filepath)
@@ -137,12 +169,20 @@ fn search_file(filepath: string, reg: RegexPattern, cfg: PrintConfig) -> int:
 
         if is_hit == 1:
             match_count = match_count + 1
+            if cfg.quiet == 1:
+                return 1
             matched_line_indices.push(i)
             matched_results.push(res)
+            if cfg.max_count > 0 and match_count >= cfg.max_count:
+                break
         i = i + 1
 
     if match_count == 0:
         return 0
+
+    // Mode: -q / --quiet
+    if cfg.quiet == 1:
+        return match_count
 
     // Mode: -l / --files-with-matches
     if cfg.files_only == 1:
@@ -158,6 +198,16 @@ fn search_file(filepath: string, reg: RegexPattern, cfg: PrintConfig) -> int:
             println(color_magenta() + filepath + color_reset() + ":" + str(match_count))
         else:
             println(filepath + ":" + str(match_count))
+        return match_count
+
+    // Mode: --json
+    if cfg.json_output == 1:
+        let mut j_idx: int = 0
+        while j_idx < len(matched_line_indices):
+            l_num := matched_line_indices[j_idx]
+            l_text := lines[l_num]
+            println("{\"type\":\"match\",\"data\":{\"path\":{\"text\":\"" + filepath + "\"},\"lines\":{\"text\":\"" + l_text + "\\n\"},\"line_number\":" + str(l_num + 1) + "}}")
+            j_idx = j_idx + 1
         return match_count
 
     // Mode: Standard match output with optional context lines (-C, -A, -B)
@@ -192,8 +242,12 @@ fn search_file(filepath: string, reg: RegexPattern, cfg: PrintConfig) -> int:
             c_i = c_i + 1
 
         // Matched line
-        line_content := lines[line_num]
-        highlighted := highlight_line(line_content, res.spans, cfg.color_enabled)
+        let mut line_content: string = lines[line_num]
+        let mut displayed_line: string = ""
+        if len(cfg.replace_str) > 0:
+            displayed_line = replace_spans_in_line(line_content, res.spans, cfg.replace_str)
+        else:
+            displayed_line = highlight_line(line_content, res.spans, cfg.color_enabled)
         
         let mut line_str: string = ""
         if cfg.show_line_numbers == 1:
@@ -203,9 +257,9 @@ fn search_file(filepath: string, reg: RegexPattern, cfg: PrintConfig) -> int:
                 line_str = str(line_num + 1) + ":"
 
         if cfg.color_enabled == 1:
-            println(color_magenta() + filepath + color_reset() + ":" + line_str + highlighted)
+            println(color_magenta() + filepath + color_reset() + ":" + line_str + displayed_line)
         else:
-            println(filepath + ":" + line_str + highlighted)
+            println(filepath + ":" + line_str + displayed_line)
         last_printed_idx = line_num
 
         // Context after

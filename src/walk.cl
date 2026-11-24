@@ -4,23 +4,30 @@
 // Author:      zk-mohammad <ZaidKhan-alamgir@proton.me>
 // License:     Cluster Community & Fair-Source License (CCFL v2.0)
 // Description: High-speed recursive directory traversal engine featuring .gitignore rule
-//              parsing, hidden file filters, and fast binary file auto-detection.
+//              parsing, hidden file filters, file type filtering (-t / -T), glob
+//              matching (-g), and fast binary file auto-detection.
 // ==============================================================================
 
 // ------------------------------------------------------------------------------
 // Model:   WalkOptions
 // Purpose: Configures directory traversal depth and filtering rules.
 // Fields:
-//   include_hidden:  1 to inspect hidden files and dot-directories, 0 to skip
-//   no_ignore:       1 to bypass .gitignore rules, 0 to honor them
-//   follow_symlinks: 1 to traverse symbolic links, 0 to ignore
-//   max_depth:       Maximum recursion depth for filesystem traversal
+//   include_hidden:   1 to inspect hidden files and dot-directories, 0 to skip
+//   no_ignore:        1 to bypass .gitignore rules, 0 to honor them
+//   follow_symlinks:  1 to traverse symbolic links, 0 to ignore
+//   max_depth:        Maximum recursion depth for filesystem traversal
+//   type_filters:     List of included file types (e.g. "cl", "rust", "c")
+//   type_not_filters: List of excluded file types
+//   glob_filters:     List of glob patterns to match or negate (e.g. "*.cl", "!*.tmp")
 // ------------------------------------------------------------------------------
 model WalkOptions:
     include_hidden: int
     no_ignore: int
     follow_symlinks: int
     max_depth: int
+    type_filters: vector[string]
+    type_not_filters: vector[string]
+    glob_filters: vector[string]
 
 // ------------------------------------------------------------------------------
 // Function: walk_options_default
@@ -28,7 +35,10 @@ model WalkOptions:
 // Purpose:  Returns standard default traversal options (no hidden, honor gitignore, max depth 100).
 // ------------------------------------------------------------------------------
 fn walk_options_default() -> WalkOptions:
-    return WalkOptions(0, 0, 0, 100)
+    let empty_t: vector[string] = []
+    let empty_tn: vector[string] = []
+    let empty_g: vector[string] = []
+    return WalkOptions(0, 0, 0, 100, empty_t, empty_tn, empty_g)
 
 // ------------------------------------------------------------------------------
 // Function: is_ignored_dir
@@ -62,9 +72,191 @@ fn is_binary_file(filepath: string) -> int:
     return 0
 
 // ------------------------------------------------------------------------------
-// Function: parse_gitignore
-// Syntax:   fn parse_gitignore(dir_path: string) -> vector[string]
-// Purpose:  Reads and parses local .gitignore files in a directory, stripping comments and blanks.
+// Filename and Extension Utilities
+// ------------------------------------------------------------------------------
+fn get_filename(filepath: string) -> string:
+    let sz: int = len(filepath)
+    let mut last_slash: int = -1
+    let mut i: int = 0
+    while i < sz:
+        if byte_at(filepath, i) == 47: // '/'
+            last_slash = i
+        i = i + 1
+    if last_slash >= 0 and last_slash + 1 < sz:
+        return substring(filepath, last_slash + 1, sz - last_slash - 1)
+    return filepath
+
+fn get_extension(filepath: string) -> string:
+    let sz: int = len(filepath)
+    let mut last_dot: int = -1
+    let mut i: int = sz - 1
+    while i >= 0:
+        b := byte_at(filepath, i)
+        if b == 47: // '/'
+            break
+        if b == 46: // '.'
+            last_dot = i
+            break
+        i = i - 1
+    if last_dot >= 0:
+        return substring(filepath, last_dot, sz - last_dot)
+    return ""
+
+// ------------------------------------------------------------------------------
+// Glob Pattern Matcher
+// ------------------------------------------------------------------------------
+fn glob_match_inner(pat: string, text: string) -> int:
+    let p_len: int = len(pat)
+    let t_len: int = len(text)
+    let mut p: int = 0
+    let mut t: int = 0
+    let mut star_p: int = -1
+    let mut match_t: int = -1
+
+    while t < t_len:
+        if p < p_len and (byte_at(pat, p) == byte_at(text, t) or byte_at(pat, p) == 63): // '?'
+            p = p + 1
+            t = t + 1
+        elif p < p_len and byte_at(pat, p) == 42: // '*'
+            star_p = p
+            p = p + 1
+            match_t = t
+        elif star_p != -1:
+            p = star_p + 1
+            match_t = match_t + 1
+            t = match_t
+        else:
+            return 0
+
+    while p < p_len and byte_at(pat, p) == 42:
+        p = p + 1
+
+    if p == p_len:
+        return 1
+    return 0
+
+fn glob_matches(glob: string, filepath: string) -> int:
+    let mut pat: string = glob
+    let mut inverted: int = 0
+    if len(pat) > 0 and byte_at(pat, 0) == 33: // '!'
+        inverted = 1
+        pat = substring(pat, 1, len(pat) - 1)
+
+    let fname: string = get_filename(filepath)
+    let mut matched: int = 0
+    if glob_match_inner(pat, filepath) == 1:
+        matched = 1
+    elif glob_match_inner(pat, fname) == 1:
+        matched = 1
+
+    if inverted == 1:
+        if matched == 1:
+            return 0
+        return 1
+    return matched
+
+// ------------------------------------------------------------------------------
+// File Type System
+// ------------------------------------------------------------------------------
+fn match_file_type(t: string, ext: string) -> int:
+    if t == "cl" and ext == ".cl":
+        return 1
+    if t == "rust" and ext == ".rs":
+        return 1
+    if t == "c" and (ext == ".c" or ext == ".h"):
+        return 1
+    if t == "cpp" and (ext == ".cpp" or ext == ".cc" or ext == ".cxx" or ext == ".hpp" or ext == ".hxx"):
+        return 1
+    if t == "py" and ext == ".py":
+        return 1
+    if t == "js" and (ext == ".js" or ext == ".jsx" or ext == ".mjs" or ext == ".cjs"):
+        return 1
+    if t == "ts" and (ext == ".ts" or ext == ".tsx"):
+        return 1
+    if t == "json" and ext == ".json":
+        return 1
+    if t == "md" and (ext == ".md" or ext == ".markdown"):
+        return 1
+    if t == "toml" and ext == ".toml":
+        return 1
+    if t == "yaml" and (ext == ".yaml" or ext == ".yml"):
+        return 1
+    if t == "go" and ext == ".go":
+        return 1
+    if t == "sh" and (ext == ".sh" or ext == ".bash"):
+        return 1
+    if t == "html" and (ext == ".html" or ext == ".htm"):
+        return 1
+    if t == "css" and (ext == ".css" or ext == ".scss" or ext == ".sass"):
+        return 1
+    if t == "java" and ext == ".java":
+        return 1
+    if t == "txt" and ext == ".txt":
+        return 1
+    if t == "sql" and ext == ".sql":
+        return 1
+    return 0
+
+fn print_type_list():
+    println("c: *.c, *.h")
+    println("cl: *.cl")
+    println("cpp: *.cpp, *.cc, *.cxx, *.hpp, *.hxx")
+    println("css: *.css, *.scss, *.sass")
+    println("go: *.go")
+    println("html: *.html, *.htm")
+    println("java: *.java")
+    println("js: *.js, *.jsx, *.mjs, *.cjs")
+    println("json: *.json")
+    println("md: *.md, *.markdown")
+    println("py: *.py")
+    println("rust: *.rs")
+    println("sh: *.sh, *.bash")
+    println("sql: *.sql")
+    println("toml: *.toml")
+    println("ts: *.ts, *.tsx")
+    println("txt: *.txt")
+    println("yaml: *.yaml, *.yml")
+
+fn is_file_allowed(filepath: string, opts: WalkOptions) -> int:
+    ext := get_extension(filepath)
+
+    // Check type exclusions (-T / --type-not)
+    let num_not: int = len(opts.type_not_filters)
+    let mut i: int = 0
+    while i < num_not:
+        t := opts.type_not_filters[i]
+        if match_file_type(t, ext) == 1:
+            return 0
+        i = i + 1
+
+    // Check type inclusions (-t / --type)
+    let num_types: int = len(opts.type_filters)
+    if num_types > 0:
+        let mut type_ok: int = 0
+        let mut j: int = 0
+        while j < num_types:
+            t := opts.type_filters[j]
+            if match_file_type(t, ext) == 1:
+                type_ok = 1
+                break
+            j = j + 1
+        if type_ok == 0:
+            return 0
+
+    // Check glob patterns (-g / --glob)
+    let num_globs: int = len(opts.glob_filters)
+    if num_globs > 0:
+        let mut g_idx: int = 0
+        while g_idx < num_globs:
+            g := opts.glob_filters[g_idx]
+            if glob_matches(g, filepath) == 0:
+                return 0
+            g_idx = g_idx + 1
+
+    return 1
+
+// ------------------------------------------------------------------------------
+// Gitignore Parser
 // ------------------------------------------------------------------------------
 fn parse_gitignore(dir_path: string) -> vector[string]:
     let rules: vector[string] = []
@@ -94,11 +286,6 @@ fn parse_gitignore(dir_path: string) -> vector[string]:
 
     return rules
 
-// ------------------------------------------------------------------------------
-// Function: matches_any_rule
-// Syntax:   fn matches_any_rule(filename: string, rules: vector[string]) -> int
-// Purpose:  Tests whether a filename matches or contains any gitignore glob string.
-// ------------------------------------------------------------------------------
 fn matches_any_rule(filename: string, rules: vector[string]) -> int:
     let mut i: int = 0
     let sz: int = len(rules)
@@ -112,8 +299,8 @@ fn matches_any_rule(filename: string, rules: vector[string]) -> int:
 // ------------------------------------------------------------------------------
 // Function: walk_collect_files
 // Syntax:   fn walk_collect_files(dir_path: string, opts: WalkOptions, depth: int) -> vector[string]
-// Purpose:  Recursively traverses directories using native `fs_list_dir`, applying gitignore
-//           and hidden file filters, returning collected non-binary files.
+// Purpose:  Recursively traverses directories using native `fs_list_dir`, applying gitignore,
+//           hidden filters, type filters, glob filters, and binary file checks.
 // ------------------------------------------------------------------------------
 fn walk_collect_files(dir_path: string, opts: WalkOptions, depth: int) -> vector[string]:
     let mut out_files: vector[string] = []
@@ -161,7 +348,8 @@ fn walk_collect_files(dir_path: string, opts: WalkOptions, depth: int) -> vector
                         k = k + 1
             else:
                 if is_binary_file(full_path) == 0:
-                    out_files.push(full_path)
+                    if is_file_allowed(full_path, opts) == 1:
+                        out_files.push(full_path)
 
         i = i + 1
     return out_files
@@ -177,5 +365,6 @@ fn walk_directory(root_path: string, opts: WalkOptions) -> vector[string]:
     let mut files: vector[string] = []
     if file_exists(root_path) == 1:
         if is_binary_file(root_path) == 0:
-            files.push(root_path)
+            if is_file_allowed(root_path, opts) == 1:
+                files.push(root_path)
     return files
