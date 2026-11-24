@@ -1,8 +1,8 @@
 // ==============================================================================
 // Module:      Fast Filesystem Walker & Ignore Engine (walk.cl)
 // Project:     Cluster Ripgrep (High-Performance Recursive Search Engine)
-// Author:      mohammadzaid/(cluster) <zkalamgir@proton.me>
-// License:     Cluster Community // License:     MIT License Fair-Source License (CCFL-1.0)
+// Author:      zk-mohammad <ZaidKhan-alamgir@proton.me>
+// License:     Cluster Community & Fair-Source License (CCFL v2.0)
 // Description: High-speed recursive directory traversal engine featuring .gitignore rule
 //              parsing, hidden file filters, and fast binary file auto-detection.
 // ==============================================================================
@@ -111,13 +111,14 @@ fn matches_any_rule(filename: string, rules: vector[string]) -> int:
 
 // ------------------------------------------------------------------------------
 // Function: walk_collect_files
-// Syntax:   fn walk_collect_files(dir_path: string, opts: WalkOptions, depth: int, &out_files: vector[string]) -> void
+// Syntax:   fn walk_collect_files(dir_path: string, opts: WalkOptions, depth: int) -> vector[string]
 // Purpose:  Recursively traverses directories using native `fs_list_dir`, applying gitignore
-//           and hidden file filters, appending non-binary files into out_files.
+//           and hidden file filters, returning collected non-binary files.
 // ------------------------------------------------------------------------------
-fn walk_collect_files(dir_path: string, opts: WalkOptions, depth: int, &out_files: vector[string]):
+fn walk_collect_files(dir_path: string, opts: WalkOptions, depth: int) -> vector[string]:
+    let mut out_files: vector[string] = []
     if depth > opts.max_depth:
-        return
+        return out_files
 
     items := fs_list_dir(dir_path)
     let mut local_rules: vector[string] = []
@@ -153,12 +154,17 @@ fn walk_collect_files(dir_path: string, opts: WalkOptions, depth: int, &out_file
 
             if fs_is_dir(full_path) == 1:
                 if is_ignored_dir(item) == 0:
-                    walk_collect_files(full_path, opts, depth + 1, out_files)
+                    sub_files := walk_collect_files(full_path, opts, depth + 1)
+                    let mut k: int = 0
+                    while k < len(sub_files):
+                        out_files.push(sub_files[k])
+                        k = k + 1
             else:
                 if is_binary_file(full_path) == 0:
                     out_files.push(full_path)
 
         i = i + 1
+    return out_files
 
 // ------------------------------------------------------------------------------
 // Function: walk_directory
@@ -166,11 +172,10 @@ fn walk_collect_files(dir_path: string, opts: WalkOptions, depth: int, &out_file
 // Purpose:  Public entrypoint for file collection. Handles both single files and recursive directory trees.
 // ------------------------------------------------------------------------------
 fn walk_directory(root_path: string, opts: WalkOptions) -> vector[string]:
-    let mut files: vector[string] = []
     if fs_is_dir(root_path) == 1:
-        walk_collect_files(root_path, opts, 0, files)
-    else:
-        if file_exists(root_path) == 1:
-            if is_binary_file(root_path) == 0:
-                files.push(root_path)
+        return walk_collect_files(root_path, opts, 0)
+    let mut files: vector[string] = []
+    if file_exists(root_path) == 1:
+        if is_binary_file(root_path) == 0:
+            files.push(root_path)
     return files

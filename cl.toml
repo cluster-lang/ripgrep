@@ -1,0 +1,12 @@
+[package]
+name = "cluster-ripgrep"
+version = "1.0.0"
+authors = ["zk-mohammad <ZaidKhan-alamgir@proton.me>"]
+edition = "2026"
+license = "CCFL-2.0"
+description = "Pure native high-performance line-oriented regex search engine matching ripgrep CLI conventions."
+
+[build]
+entry = "src/main.cl"
+optimization = "O3"
+target = "native"

@@ -1,8 +1,8 @@
 // ==============================================================================
 // Module:      Comprehensive Verification Suite (tests/test_ripgrep.cl)
 // Project:     Cluster Ripgrep (High-Performance Recursive Search Engine)
-// Author:      mohammadzaid/(cluster) <zkalamgir@proton.me>
-// License:     Cluster Community // License:     MIT License Fair-Source License (CCFL-1.0)
+// Author:      zk-mohammad <ZaidKhan-alamgir@proton.me>
+// License:     Cluster Community & Fair-Source License (CCFL v2.0)
 // Description: Multi-phase unit and integration test suite validating Boyer-Moore search,
 //              case folding, word boundary detection, regex wildcards/quantifiers, character
 //              classes, line anchors, ANSI coloring, and recursive directory traversal.
@@ -132,9 +132,36 @@ fn main() -> int:
     assert_true(m_inv == 3, "Expected 3 inverted matches (banana, cherry, orange)")
     println("✓ Inverted matching passed!")
 
+    // Phase 11: Fixed Strings (-F with regex characters)
+    println("-> 11. Testing Fixed Strings (-F)...")
+    tmp_lit := "/tmp/cluster_rg_lit.txt"
+    file_write(tmp_lit, "function(a.*b)\nfunction_literal\n")
+    let mut reg_lit: RegexPattern = regex_compile("a.*b", 0, 0)
+    reg_lit.is_literal_only = 1
+    m_lit := search_file(tmp_lit, reg_lit, cfg)
+    assert_true(m_lit == 1, "Expected 1 literal fixed string match")
+    system("rm -f " + tmp_lit)
+    println("✓ Fixed strings search passed!")
+
+    // Phase 12: Count Only Mode (-c)
+    println("-> 12. Testing Count Only Mode (-c)...")
+    let mut cfg_cnt: PrintConfig = print_config_default()
+    cfg_cnt.count_only = 1
+    m_cnt := search_file(tmp_path, reg_search, cfg_cnt)
+    assert_true(m_cnt == 2, "Expected count 2 returned")
+    println("✓ Count only mode passed!")
+
+    // Phase 13: Files With Matches Mode (-l)
+    println("-> 13. Testing Files With Matches Mode (-l)...")
+    let mut cfg_files: PrintConfig = print_config_default()
+    cfg_files.files_only = 1
+    m_files := search_file(tmp_path, reg_search, cfg_files)
+    assert_true(m_files == 2, "Expected files mode match count")
+    println("✓ Files with matches mode passed!")
+
     system("rm -f " + tmp_path)
 
     println("=================================================================")
-    println("      ALL CLUSTER-RIPGREP TESTS PASSED (100% OK)!                ")
+    println("      ALL 13 CLUSTER-RIPGREP PHASES PASSED (100% OK)!            ")
     println("=================================================================")
     return 0

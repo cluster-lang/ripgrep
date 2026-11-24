@@ -4,7 +4,7 @@
 > **Project Status: Active Development**  
 > This project is currently under active development. Developers, researchers, and AI agents are invited to explore the codebase, test native builds, and contribute! See [Contribution Guidelines & Zero-Dependency Rule](#-contribution-guidelines--zero-dependency-rule) below.
 
-**Author:** mohammadzaid/(cluster) <zkalamgir@proton.me>  
+**Author:** zk-mohammad <ZaidKhan-alamgir@proton.me>  
 **Organization:** [cluster-lang](https://github.com/cluster-lang)  
 **License:** Cluster Community & Fair-Source License (CCFL v2.0 / Strict-Distribution)  
 
@@ -95,4 +95,4 @@ This software is released under the **Cluster Community & Fair-Source License (C
   - Individual software developers, students, educators, academic researchers, non-profits, and scientific research groups have full rights to inspect, test, run, compile, and contribute without any license fees (any modification or derivative reproduction strictly requires prior written permission, including for research).
 - **Commercial Enterprise License Required:**
   - Commercial companies, startups, and for-profit businesses using Cluster Ripgrep in commercial products, SaaS services, proprietary closed-source systems, or revenue-generating operations are required to purchase a commercial license.
-  - Contact: **`zkalamgir@proton.me`** (`mohammadzaid/(cluster)`).
+  - Contact: **`ZaidKhan-alamgir@proton.me`** (`mohammadzaid/(cluster)`).
